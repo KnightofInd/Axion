@@ -28,7 +28,13 @@
 - `DELETE /api/v1/tasks/{task_id}?email=you@example.com`
 - `GET /api/v1/tasks/commitments/overdue?email=you@example.com`
 
+## Phase 3 Endpoints
+- `POST /api/v1/orchestrator/run?email=you@example.com&resume=true&max_focus_blocks=2`
+- `GET /api/v1/orchestrator/runs/latest?email=you@example.com`
+- `POST /api/v1/orchestrator/debrief`
+
 ## Notes
 - Run OAuth URL once in browser, complete consent, then callback stores tokens in `users`.
 - Set `GEMINI_API_KEY` to enable Gemini extraction mode for Email Agent. Without it, heuristic extraction is used.
 - Supabase schema lives in `sql/001_phase1_schema.sql`.
+- Run `sql/002_phase3_orchestrator.sql` before using Phase 3 orchestrator endpoints.

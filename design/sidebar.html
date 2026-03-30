@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXION — Gmail Add-on Sidebar</title>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  :root {
+    --bg-primary: #0A0A0F;
+    --bg-card: #12121A;
+    --bg-input: #1A1A2E;
+    --bg-hover: #16162A;
+    --border-default: #1E1E2E;
+    --accent-blue: #4F8EF7;
+    --accent-purple: #7C3AED;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+    --text-primary: #F8FAFC;
+    --text-muted: #94A3B8;
+    --text-label: #4F8EF7;
+    --skeleton-base: #1E1E2E;
+    --skeleton-shine: #252535;
+  }
+
+  body {
+    font-family: 'Google Sans', 'Inter', system-ui, sans-serif;
+    background: #060608;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    gap: 48px;
+    min-height: 100vh;
+  }
+
+  .screens-row {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .screen-label {
+    color: #4F8EF7;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 12px;
+    opacity: 0.7;
+  }
+
+  /* ═══ SIDEBAR CONTAINER ═══ */
+  .sidebar {
+    width: 320px;
+    height: 768px;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-default);
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    flex-shrink: 0;
+    border-radius: 2px;
+  }
+  .sidebar:hover {
+    scrollbar-color: #1E1E2E transparent;
+  }
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: #1E1E2E; border-radius: 2px; }
+
+  /* ═══ STAR FIELD ═══ */
+  .stars {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  /* ═══ HEADER ═══ */
+  .header {
+    position: relative;
+    height: 64px;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-default);
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-wrap {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo-glow {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(79,142,247,0.2) 0%, transparent 70%);
+  }
+  .logo-svg { position: relative; z-index: 1; }
+  .product-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .status-pill {
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .status-synced {
+    background: rgba(16,185,129,0.12);
+    border: 1px solid rgba(16,185,129,0.35);
+    color: var(--success);
+  }
+  .status-syncing {
+    background: rgba(79,142,247,0.12);
+    border: 1px solid rgba(79,142,247,0.35);
+    color: var(--accent-blue);
+  }
+  .status-dot { font-size: 8px; }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .dot-pulse { animation: pulseDot 1s infinite; }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hdr-icon {
+    font-size: 14px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 150ms;
+    background: none;
+    border: none;
+    padding: 0;
+    line-height: 1;
+  }
+  .hdr-icon:hover { color: var(--accent-blue); }
+  .hdr-icon.settings:hover { color: var(--text-primary); }
+  .header-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, #4F8EF7 50%, transparent 100%);
+    opacity: 0.4;
+    animation: breatheLine 3s ease-in-out infinite;
+  }
+  @keyframes breatheLine {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ═══ SECTION LABEL ═══ */
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  /* ═══ BRIEFING CARD ═══ */
+  .briefing-card {
+    margin: 12px;
+    border-radius: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    padding: 14px 16px;
+    position: relative;
+    overflow: hidden;
+    z-index: 2;
+  }
+  .briefing-accent {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #4F8EF7 0%, #7C3AED 100%);
+  }
+  .briefing-glow {
+    position: absolute;
+    top: 0; left: 0;
+    width: 60%; height: 100%;
+    background: radial-gradient(ellipse at top left, rgba(79,142,247,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .briefing-text {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.6;
+    margin-top: 8px;
+    position: relative;
+    z-index: 1;
+    min-height: 62px;
+  }
+  .cursor-blink {
+    display: inline-block;
+    color: var(--accent-blue);
+    animation: blinkCursor 0.8s infinite;
+  }
+  @keyframes blinkCursor {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .briefing-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    position: relative;
+    z-index: 1;
+  }
+  .briefing-time { font-size: 10px; color: var(--text-muted); }
+  .refresh-btn {
+    font-size: 10px;
+    color: var(--accent-blue);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 0;
+  }
+  .refresh-btn:hover { opacity: 0.7; }
+
+  /* ═══ STATS BAR ═══ */
+  .stats-bar {
+    margin: 0 12px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 10px;
+    padding: 12px 0;
+    display: flex;
+    z-index: 2;
+    position: relative;
+  }
+  .stat-col {
+    flex: 1;
+    text-align: center;
+    padding: 0 12px;
+  }
+  .stat-col + .stat-col {
+    border-left: 1px solid var(--border-default);
+  }
+  .stat-num {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #4F8EF7 0%, #7C3AED 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 2px;
+  }
+
+  /* ═══ SECTION ROW ═══ */
+  .section-row {
+    margin: 0 16px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 2;
+    position: relative;
+  }
+  .view-all {
+    font-size: 10px;
+    color: var(--text-muted);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 0;
+    transition: color 150ms;
+  }
+  .view-all:hover { color: var(--text-primary); }
+
+  /* ═══ TASK CARDS ═══ */
+  .task-card {
+    margin: 0 12px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    cursor: pointer;
+    transition: all 150ms ease;
+    z-index: 2;
+    position: relative;
+  }
+  .task-card:hover {
+    background: var(--bg-hover);
+    border-color: rgba(79,142,247,0.3);
+  }
+  .priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-high {
+    background: var(--danger);
+    box-shadow: 0 0 6px #EF4444;
+    animation: pulsePriority 1.5s ease-in-out infinite;
+  }
+  @keyframes pulsePriority {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 6px #EF4444; }
+    50% { transform: scale(1.4); box-shadow: 0 0 10px #EF4444; }
+  }
+  .dot-medium { background: var(--warning); }
+  .dot-low { background: var(--success); }
+  .task-info { flex: 1; min-width: 0; }
+  .task-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.2px;
+  }
+  .task-due {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+  .task-due.overdue { color: var(--danger); }
+  .source-chip {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 3px 7px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .chip-email {
+    background: rgba(79,142,247,0.12);
+    border: 1px solid rgba(79,142,247,0.35);
+    color: var(--accent-blue);
+  }
+  .chip-meeting {
+    background: rgba(124,58,237,0.12);
+    border: 1px solid rgba(124,58,237,0.35);
+    color: var(--accent-purple);
+  }
+
+  /* ═══ DIVIDER ═══ */
+  .divider {
+    height: 1px;
+    background: var(--border-default);
+    margin: 8px 12px;
+    z-index: 2;
+    position: relative;
+  }
+
+  /* ═══ CALENDAR CHIPS ═══ */
+  .cal-chips {
+    margin: 0 12px 12px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+    position: relative;
+  }
+  .cal-chip {
+    flex: 1;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .cal-chip-blue {
+    background: rgba(79,142,247,0.10);
+    border: 1px solid rgba(79,142,247,0.30);
+  }
+  .cal-chip-purple {
+    background: rgba(124,58,237,0.10);
+    border: 1px solid rgba(124,58,237,0.30);
+  }
+  .cal-chip-icon { font-size: 14px; display: block; margin-bottom: 4px; }
+  .cal-chip-num {
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #4F8EF7 0%, #7C3AED 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+  .cal-chip-num-purple {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent-purple);
+    line-height: 1.2;
+  }
+  .cal-chip-label1 { font-size: 10px; color: var(--text-muted); display: block; }
+  .cal-chip-label2 { font-size: 10px; color: var(--text-muted); display: block; }
+
+  /* ═══ TABS ═══ */
+  .tab-row {
+    margin: 0 12px 8px;
+    display: flex;
+    gap: 16px;
+    z-index: 2;
+    position: relative;
+  }
+  .tab {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    padding-bottom: 4px;
+    background: none;
+    border: none;
+    font-family: inherit;
+    transition: color 150ms;
+  }
+  .tab.active {
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--accent-blue);
+  }
+  .tab.inactive {
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+  }
+  .tab.inactive:hover { color: var(--text-primary); }
+
+  /* ═══ COMMITMENT ITEMS ═══ */
+  .commit-item {
+    margin: 0 12px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 2;
+    position: relative;
+  }
+  .commit-item.overdue {
+    border-left: 3px solid var(--warning);
+    background: rgba(245,158,11,0.03);
+  }
+  .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4F8EF7 0%, #7C3AED 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .commit-info { flex: 1; min-width: 0; }
+  .commit-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .commit-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .commit-due { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+  .commit-due.overdue { color: var(--warning); }
+
+  /* ═══ ASK AXION ═══ */
+  .ask-response {
+    margin: 0 12px 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--accent-blue);
+    border-radius: 8px;
+    padding: 10px 12px;
+    z-index: 2;
+    position: relative;
+  }
+  .ask-label {
+    font-size: 9px;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .ask-text {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+  .ask-input-row {
+    margin: 0 12px 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    z-index: 2;
+    position: relative;
+  }
+  .ask-input {
+    flex: 1;
+    height: 36px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-default);
+    border-radius: 18px;
+    padding: 0 14px;
+    font-size: 12px;
+    color: var(--text-primary);
+    font-family: inherit;
+    outline: none;
+    transition: all 200ms ease;
+  }
+  .ask-input::placeholder { color: rgba(148,163,184,0.6); }
+  .ask-input:focus {
+    border-color: rgba(79,142,247,0.6);
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.08);
+  }
+  .ask-input.focused {
+    border-color: rgba(79,142,247,0.6);
+    box-shadow: 0 0 0 3px rgba(79,142,247,0.08);
+  }
+  .send-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4F8EF7 0%, #7C3AED 100%);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 150ms ease;
+  }
+  .send-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 12px rgba(79,142,247,0.3);
+  }
+
+  /* ═══ SYNC BUTTON ═══ */
+  .sync-btn {
+    position: sticky;
+    bottom: 0;
+    width: 100%;
+    height: 52px;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #4F8EF7 0%, #7C3AED 100%);
+    font-family: inherit;
+    overflow: hidden;
+    z-index: 20;
+    flex-shrink: 0;
+    margin-top: auto;
+  }
+  .sync-btn-idle:hover {
+    box-shadow: 0 -6px 24px rgba(79,142,247,0.3);
+    filter: brightness(1.1);
+  }
+  .sync-btn-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .sync-btn-chevron {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+  .shimmer-sweep {
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    animation: shimmerSweep 3s ease-in-out infinite;
+  }
+  @keyframes shimmerSweep {
+    0% { left: -40%; opacity: 0; }
+    10% { opacity: 1; }
+    40% { left: 140%; opacity: 0; }
+    100% { left: 140%; opacity: 0; }
+  }
+  .sync-btn-syncing {
+    background: linear-gradient(135deg, rgba(79,142,247,0.85) 0%, rgba(124,58,237,0.85) 100%);
+    cursor: not-allowed;
+  }
+  .sync-btn-success {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  }
+
+  /* ═══ SYNCING DOTS ═══ */
+  .orbit-dots {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .orbit-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+  }
+  .orbit-dot:nth-child(1) { animation: orbit1 1s linear infinite; }
+  .orbit-dot:nth-child(2) { animation: orbit2 1s linear infinite; }
+  .orbit-dot:nth-child(3) { animation: orbit3 1s linear infinite; }
+  @keyframes orbit1 {
+    0% { transform: rotate(0deg) translateX(8px); }
+    100% { transform: rotate(360deg) translateX(8px); }
+  }
+  @keyframes orbit2 {
+    0% { transform: rotate(120deg) translateX(8px); }
+    100% { transform: rotate(480deg) translateX(8px); }
+  }
+  @keyframes orbit3 {
+    0% { transform: rotate(240deg) translateX(8px); }
+    100% { transform: rotate(600deg) translateX(8px); }
+  }
+
+  /* ═══ SKELETON ═══ */
+  @keyframes shimmerSkeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .skel {
+    background: linear-gradient(90deg, #1E1E2E 0%, #252535 50%, #1E1E2E 100%);
+    background-size: 200% 100%;
+    animation: shimmerSkeleton 1.5s infinite;
+    border-radius: 4px;
+  }
+  .skel-line { height: 12px; }
+  .skel-circle { border-radius: 50%; }
+  .skel-pill { border-radius: 18px; }
+  .skel-card {
+    margin: 0 12px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+  }
+
+  /* ═══ EMPTY STATE ═══ */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    z-index: 2;
+    position: relative;
+  }
+  .empty-icon {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 8px;
+  }
+  .empty-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .empty-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ═══ STAGGER ANIMATIONS ═══ */
+  .anim { opacity: 0; transform: translateY(8px); animation: fadeUp 250ms ease-out forwards; }
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .d0  { animation-delay: 0ms; }
+  .d80 { animation-delay: 80ms; }
+  .d160 { animation-delay: 160ms; }
+  .d240 { animation-delay: 240ms; }
+  .d300 { animation-delay: 300ms; }
+  .d360 { animation-delay: 360ms; }
+  .d420 { animation-delay: 420ms; }
+  .d480 { animation-delay: 480ms; }
+  .d540 { animation-delay: 540ms; }
+  .d600 { animation-delay: 600ms; }
+
+  /* screen wrapper */
+  .screen-wrap { display: flex; flex-direction: column; align-items: center; }
+  
+  /* page title */
+  .page-title {
+    color: rgba(148,163,184,0.4);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 24px;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">AXION · Gmail Add-on Sidebar · 4 Screens</div>
+
+<div class="screens-row">
+
+  <!-- ═══════════════════════════════════
+       SCREEN 1 — FULLY SYNCED
+  ═══════════════════════════════════ -->
+  <div class="screen-wrap">
+    <div class="screen-label">Screen 1 — Fully Synced</div>
+    <div class="sidebar" id="s1">
+      <!-- Stars -->
+      <div class="stars" id="stars1"></div>
+
+      <!-- HEADER -->
+      <div class="header anim d0">
+        <div class="header-left">
+          <div class="logo-wrap">
+            <div class="logo-glow"></div>
+            <svg class="logo-svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="#4F8EF7" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="2" fill="url(#lg1)"/>
+              <circle cx="18" cy="6" r="1.5" fill="#4F8EF7"/>
+              <defs>
+                <linearGradient id="lg1" x1="10" y1="10" x2="14" y2="14">
+                  <stop offset="0%" stop-color="#4F8EF7"/>
+                  <stop offset="100%" stop-color="#7C3AED"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span class="product-name">AXION</span>
+        </div>
+        <div class="status-pill status-synced">
+          <span class="status-dot">●</span> SYNCED
+        </div>
+        <div class="header-right">
+          <button class="hdr-icon" title="Open Dashboard">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 2H2v10h10V8M8 2h4v4M8 6l4-4"/>
+            </svg>
+          </button>
+          <button class="hdr-icon settings">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="7" cy="7" r="2"/>
+              <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41"/>
+            </svg>
+          </button>
+        </div>
+        <div class="header-line"></div>
+      </div>
+
+      <!-- BRIEFING -->
+      <div class="briefing-card anim d80">
+        <div class="briefing-accent"></div>
+        <div class="briefing-glow"></div>
+        <div class="section-label" style="position:relative;z-index:1">🌅&nbsp; Morning Briefing</div>
+        <div class="briefing-text" id="brief1">
+          Good morning. You have 3 priority tasks today. Rahul owes you a reply on the proposal by Thursday. Two focus blocks have been reserved.<span class="cursor-blink" id="cur1"></span>
+        </div>
+        <div class="briefing-footer">
+          <span class="briefing-time">Generated at 8:04 AM</span>
+          <button class="refresh-btn">Refresh ↺</button>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats-bar anim d160">
+        <div class="stat-col"><div class="stat-num">4</div><div class="stat-label">Tasks</div></div>
+        <div class="stat-col"><div class="stat-num">2</div><div class="stat-label">Focus</div></div>
+        <div class="stat-col"><div class="stat-num">3</div><div class="stat-label">Commits</div></div>
+      </div>
+
+      <!-- TASKS -->
+      <div class="section-row anim d240">
+        <span class="section-label">✅&nbsp; Priority Tasks</span>
+        <button class="view-all">View all →</button>
+      </div>
+
+      <div class="task-card anim d300">
+        <div class="priority-dot dot-high"></div>
+        <div class="task-info">
+          <div class="task-title">Send proposal to Priya</div>
+          <div class="task-due">Due Thursday</div>
+        </div>
+        <div class="source-chip chip-email">Email</div>
+      </div>
+
+      <div class="task-card anim d360">
+        <div class="priority-dot dot-medium"></div>
+        <div class="task-info">
+          <div class="task-title">Review contract for Amit</div>
+          <div class="task-due">Due Wednesday</div>
+        </div>
+        <div class="source-chip chip-meeting">Meeting</div>
+      </div>
+
+      <div class="task-card anim d420">
+        <div class="priority-dot dot-low"></div>
+        <div class="task-info">
+          <div class="task-title">Update project roadmap</div>
+          <div class="task-due">Due Friday</div>
+        </div>
+        <div class="source-chip chip-email">Email</div>
+      </div>
+
+      <div class="divider anim d420"></div>
+
+      <!-- CALENDAR -->
+      <div class="section-row anim d480" style="margin-bottom:8px">
+        <span class="section-label">📅&nbsp; Calendar</span>
+      </div>
+      <div class="cal-chips anim d480">
+        <div class="cal-chip cal-chip-blue">
+          <span class="cal-chip-icon">🎯</span>
+          <div class="cal-chip-num">2</div>
+          <span class="cal-chip-label1">Focus blocks</span>
+          <span class="cal-chip-label2">added today</span>
+        </div>
+        <div class="cal-chip cal-chip-purple">
+          <span class="cal-chip-icon">⚡</span>
+          <div class="cal-chip-num-purple">3:00 PM</div>
+          <span class="cal-chip-label1">Next free</span>
+          <span class="cal-chip-label2">slot today</span>
+        </div>
+      </div>
+
+      <div class="divider anim d480"></div>
+
+      <!-- COMMITMENTS -->
+      <div class="section-row anim d540">
+        <span class="section-label">🤝&nbsp; Commitments</span>
+      </div>
+      <div class="tab-row anim d540">
+        <button class="tab active">I Owe (2)</button>
+        <button class="tab inactive">They Owe (3)</button>
+      </div>
+
+      <div class="commit-item anim d540">
+        <div class="avatar">P</div>
+        <div class="commit-info">
+          <div class="commit-name">Priya Sharma</div>
+          <div class="commit-desc">Proposal draft</div>
+        </div>
+        <div class="commit-due">Thu</div>
+      </div>
+      <div class="commit-item overdue anim d540">
+        <div class="avatar">A</div>
+        <div class="commit-info">
+          <div class="commit-name">Amit Patel</div>
+          <div class="commit-desc">Contract review</div>
+        </div>
+        <div class="commit-due overdue">Overdue</div>
+      </div>
+
+      <div class="divider anim d540"></div>
+
+      <!-- ASK AXION -->
+      <div class="section-row anim d600">
+        <span class="section-label">💬&nbsp; Ask Axion</span>
+      </div>
+      <div class="ask-input-row anim d600">
+        <input class="ask-input" type="text" placeholder="What did I promise this week?">
+        <button class="send-btn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 7h10M8 3l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- SYNC BUTTON -->
+      <button class="sync-btn sync-btn-idle anim d0">
+        <span style="font-size:16px">⚡</span>
+        <span class="sync-btn-text">Sync Now</span>
+        <span class="sync-btn-chevron">›</span>
+        <div class="shimmer-sweep"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════
+       SCREEN 2 — SYNCING STATE
+  ═══════════════════════════════════ -->
+  <div class="screen-wrap">
+    <div class="screen-label">Screen 2 — Syncing</div>
+    <div class="sidebar" id="s2">
+      <div class="stars" id="stars2"></div>
+
+      <div class="header">
+        <div class="header-left">
+          <div class="logo-wrap">
+            <div class="logo-glow"></div>
+            <svg class="logo-svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="#4F8EF7" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="2" fill="url(#lg2)"/>
+              <circle cx="18" cy="6" r="1.5" fill="#4F8EF7"/>
+              <defs>
+                <linearGradient id="lg2" x1="10" y1="10" x2="14" y2="14">
+                  <stop offset="0%" stop-color="#4F8EF7"/>
+                  <stop offset="100%" stop-color="#7C3AED"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span class="product-name">AXION</span>
+        </div>
+        <div class="status-pill status-syncing">
+          <span class="status-dot dot-pulse">●</span> Syncing...
+        </div>
+        <div class="header-right">
+          <button class="hdr-icon">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M6 2H2v10h10V8M8 2h4v4M8 6l4-4"/>
+            </svg>
+          </button>
+          <button class="hdr-icon settings">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="7" cy="7" r="2"/>
+              <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41"/>
+            </svg>
+          </button>
+        </div>
+        <div class="header-line"></div>
+      </div>
+
+      <!-- SKELETON BRIEFING -->
+      <div style="margin:12px;background:var(--bg-card);border:1px solid var(--border-default);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;">
+        <div class="briefing-accent"></div>
+        <div class="skel skel-line" style="width:95%;margin-bottom:8px"></div>
+        <div class="skel skel-line" style="width:80%;margin-bottom:8px"></div>
+        <div class="skel skel-line" style="width:60%"></div>
+      </div>
+
+      <!-- SKELETON STATS -->
+      <div style="margin:0 12px 12px;background:var(--bg-card);border:1px solid var(--border-default);border-radius:10px;padding:12px 0;display:flex;">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 12px">
+          <div class="skel skel-circle" style="width:24px;height:24px"></div>
+          <div class="skel skel-line" style="width:40px"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 12px;border-left:1px solid var(--border-default)">
+          <div class="skel skel-circle" style="width:24px;height:24px"></div>
+          <div class="skel skel-line" style="width:40px"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 12px;border-left:1px solid var(--border-default)">
+          <div class="skel skel-circle" style="width:24px;height:24px"></div>
+          <div class="skel skel-line" style="width:40px"></div>
+        </div>
+      </div>
+
+      <!-- SKELETON TASK LABEL -->
+      <div style="margin:0 16px 8px;display:flex;justify-content:space-between">
+        <div class="skel" style="width:120px;height:10px;border-radius:4px"></div>
+        <div class="skel" style="width:50px;height:10px;border-radius:4px"></div>
+      </div>
+
+      <!-- SKELETON TASK CARDS -->
+      <div class="skel-card">
+        <div class="skel skel-circle" style="width:8px;height:8px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skel skel-line" style="width:70%;margin-bottom:6px"></div>
+          <div class="skel skel-line" style="width:40%"></div>
+        </div>
+        <div class="skel skel-pill" style="width:40px;height:18px"></div>
+      </div>
+      <div class="skel-card">
+        <div class="skel skel-circle" style="width:8px;height:8px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skel skel-line" style="width:65%;margin-bottom:6px"></div>
+          <div class="skel skel-line" style="width:35%"></div>
+        </div>
+        <div class="skel skel-pill" style="width:52px;height:18px"></div>
+      </div>
+      <div class="skel-card">
+        <div class="skel skel-circle" style="width:8px;height:8px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skel skel-line" style="width:55%;margin-bottom:6px"></div>
+          <div class="skel skel-line" style="width:45%"></div>
+        </div>
+        <div class="skel skel-pill" style="width:40px;height:18px"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- SKELETON CAL -->
+      <div style="margin:0 16px 8px">
+        <div class="skel" style="width:80px;height:10px;border-radius:4px"></div>
+      </div>
+      <div style="margin:0 12px 12px;display:flex;gap:8px">
+        <div class="skel" style="flex:1;height:76px;border-radius:10px"></div>
+        <div class="skel" style="flex:1;height:76px;border-radius:10px"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- SKELETON COMMITS -->
+      <div style="margin:0 16px 8px">
+        <div class="skel" style="width:100px;height:10px;border-radius:4px"></div>
+      </div>
+      <div style="margin:0 12px 6px;background:var(--bg-card);border:1px solid var(--border-default);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;height:52px">
+        <div class="skel skel-circle" style="width:28px;height:28px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skel skel-line" style="width:50%;margin-bottom:6px"></div>
+          <div class="skel skel-line" style="width:35%"></div>
+        </div>
+      </div>
+      <div style="margin:0 12px 6px;background:var(--bg-card);border:1px solid var(--border-default);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;height:52px">
+        <div class="skel skel-circle" style="width:28px;height:28px;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div class="skel skel-line" style="width:55%;margin-bottom:6px"></div>
+          <div class="skel skel-line" style="width:40%"></div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- SKELETON INPUT -->
+      <div style="margin:0 16px 8px">
+        <div class="skel" style="width:90px;height:10px;border-radius:4px"></div>
+      </div>
+      <div style="margin:0 12px 12px">
+        <div class="skel skel-pill" style="width:100%;height:36px"></div>
+      </div>
+
+      <!-- SYNC BUTTON SYNCING -->
+      <button class="sync-btn sync-btn-syncing" style="cursor:not-allowed">
+        <div class="orbit-dots">
+          <div class="orbit-dot"></div>
+          <div class="orbit-dot"></div>
+          <div class="orbit-dot"></div>
+        </div>
+        <span class="sync-btn-text" style="opacity:0.7">Syncing...</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════
+       SCREEN 3 — ASK AXION ACTIVE
+  ═══════════════════════════════════ -->
+  <div class="screen-wrap">
+    <div class="screen-label">Screen 3 — Ask Axion Active</div>
+    <div class="sidebar" id="s3">
+      <div class="stars" id="stars3"></div>
+
+      <div class="header anim d0">
+        <div class="header-left">
+          <div class="logo-wrap">
+            <div class="logo-glow"></div>
+            <svg class="logo-svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="#4F8EF7" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="2" fill="url(#lg3)"/>
+              <circle cx="18" cy="6" r="1.5" fill="#4F8EF7"/>
+              <defs>
+                <linearGradient id="lg3" x1="10" y1="10" x2="14" y2="14">
+                  <stop offset="0%" stop-color="#4F8EF7"/>
+                  <stop offset="100%" stop-color="#7C3AED"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span class="product-name">AXION</span>
+        </div>
+        <div class="status-pill status-synced">
+          <span class="status-dot">●</span> SYNCED
+        </div>
+        <div class="header-right">
+          <button class="hdr-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2H2v10h10V8M8 2h4v4M8 6l4-4"/></svg></button>
+          <button class="hdr-icon settings"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="2"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41"/></svg></button>
+        </div>
+        <div class="header-line"></div>
+      </div>
+
+      <!-- BRIEFING -->
+      <div class="briefing-card anim d80">
+        <div class="briefing-accent"></div>
+        <div class="briefing-glow"></div>
+        <div class="section-label" style="position:relative;z-index:1">🌅&nbsp; Morning Briefing</div>
+        <div class="briefing-text" style="position:relative;z-index:1">
+          Good morning. You have 3 priority tasks today. Rahul owes you a reply on the proposal by Thursday.
+        </div>
+        <div class="briefing-footer">
+          <span class="briefing-time">Generated at 8:04 AM</span>
+          <button class="refresh-btn">Refresh ↺</button>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats-bar anim d160">
+        <div class="stat-col"><div class="stat-num">4</div><div class="stat-label">Tasks</div></div>
+        <div class="stat-col"><div class="stat-num">2</div><div class="stat-label">Focus</div></div>
+        <div class="stat-col"><div class="stat-num">3</div><div class="stat-label">Commits</div></div>
+      </div>
+
+      <!-- TASKS -->
+      <div class="section-row anim d240"><span class="section-label">✅&nbsp; Priority Tasks</span><button class="view-all">View all →</button></div>
+      <div class="task-card anim d300">
+        <div class="priority-dot dot-high"></div>
+        <div class="task-info"><div class="task-title">Send proposal to Priya</div><div class="task-due">Due Thursday</div></div>
+        <div class="source-chip chip-email">Email</div>
+      </div>
+      <div class="task-card anim d360">
+        <div class="priority-dot dot-medium"></div>
+        <div class="task-info"><div class="task-title">Review contract for Amit</div><div class="task-due">Due Wednesday</div></div>
+        <div class="source-chip chip-meeting">Meeting</div>
+      </div>
+
+      <div class="divider anim d420"></div>
+
+      <!-- CALENDAR -->
+      <div class="section-row anim d480" style="margin-bottom:8px"><span class="section-label">📅&nbsp; Calendar</span></div>
+      <div class="cal-chips anim d480">
+        <div class="cal-chip cal-chip-blue">
+          <span class="cal-chip-icon">🎯</span>
+          <div class="cal-chip-num">2</div>
+          <span class="cal-chip-label1">Focus blocks</span>
+          <span class="cal-chip-label2">added today</span>
+        </div>
+        <div class="cal-chip cal-chip-purple">
+          <span class="cal-chip-icon">⚡</span>
+          <div class="cal-chip-num-purple">3:00 PM</div>
+          <span class="cal-chip-label1">Next free</span>
+          <span class="cal-chip-label2">slot today</span>
+        </div>
+      </div>
+
+      <div class="divider anim d480"></div>
+
+      <!-- COMMITMENTS -->
+      <div class="section-row anim d540"><span class="section-label">🤝&nbsp; Commitments</span></div>
+      <div class="tab-row anim d540">
+        <button class="tab active">I Owe (2)</button>
+        <button class="tab inactive">They Owe (3)</button>
+      </div>
+      <div class="commit-item anim d540">
+        <div class="avatar">P</div>
+        <div class="commit-info"><div class="commit-name">Priya Sharma</div><div class="commit-desc">Proposal draft</div></div>
+        <div class="commit-due">Thu</div>
+      </div>
+
+      <div class="divider anim d540"></div>
+
+      <!-- ASK AXION — ACTIVE -->
+      <div class="section-row anim d600"><span class="section-label">💬&nbsp; Ask Axion</span></div>
+      <div class="ask-response anim d600">
+        <div class="ask-label">AXION</div>
+        <div class="ask-text" id="asktext3">You promised to send the proposal to Priya by Friday. You also committed to review Amit's contract by Wednesday EOD.<span class="cursor-blink"></span></div>
+      </div>
+      <div class="ask-input-row anim d600">
+        <input class="ask-input focused" type="text" placeholder="What did I promise this week?" value="">
+        <button class="send-btn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <button class="sync-btn sync-btn-idle anim d0">
+        <span style="font-size:16px">⚡</span>
+        <span class="sync-btn-text">Sync Now</span>
+        <span class="sync-btn-chevron">›</span>
+        <div class="shimmer-sweep"></div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════
+       SCREEN 4 — EMPTY STATE
+  ═══════════════════════════════════ -->
+  <div class="screen-wrap">
+    <div class="screen-label">Screen 4 — Empty State</div>
+    <div class="sidebar" id="s4">
+      <div class="stars" id="stars4"></div>
+
+      <div class="header anim d0">
+        <div class="header-left">
+          <div class="logo-wrap">
+            <div class="logo-glow"></div>
+            <svg class="logo-svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="#4F8EF7" stroke-width="1.5"/>
+              <circle cx="12" cy="12" r="2" fill="url(#lg4)"/>
+              <circle cx="18" cy="6" r="1.5" fill="#4F8EF7"/>
+              <defs>
+                <linearGradient id="lg4" x1="10" y1="10" x2="14" y2="14">
+                  <stop offset="0%" stop-color="#4F8EF7"/>
+                  <stop offset="100%" stop-color="#7C3AED"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span class="product-name">AXION</span>
+        </div>
+        <div class="status-pill status-synced">
+          <span class="status-dot">●</span> SYNCED
+        </div>
+        <div class="header-right">
+          <button class="hdr-icon"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2H2v10h10V8M8 2h4v4M8 6l4-4"/></svg></button>
+          <button class="hdr-icon settings"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="2"/><path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.93 2.93l1.41 1.41M9.66 9.66l1.41 1.41M2.93 11.07l1.41-1.41M9.66 4.34l1.41-1.41"/></svg></button>
+        </div>
+        <div class="header-line"></div>
+      </div>
+
+      <!-- BRIEFING EMPTY -->
+      <div class="briefing-card anim d80">
+        <div class="briefing-accent"></div>
+        <div class="briefing-glow"></div>
+        <div class="section-label" style="position:relative;z-index:1">🌅&nbsp; Morning Briefing</div>
+        <div class="briefing-text" style="position:relative;z-index:1">
+          Your inbox is clear. No commitments detected in the last 48 hours. Try syncing again to check for updates.
+        </div>
+        <div class="briefing-footer">
+          <span class="briefing-time">Generated at 8:04 AM</span>
+          <button class="refresh-btn">Refresh ↺</button>
+        </div>
+      </div>
+
+      <!-- STATS ZERO -->
+      <div class="stats-bar anim d160">
+        <div class="stat-col"><div class="stat-num">0</div><div class="stat-label">Tasks</div></div>
+        <div class="stat-col"><div class="stat-num">0</div><div class="stat-label">Focus</div></div>
+        <div class="stat-col"><div class="stat-num">0</div><div class="stat-label">Commits</div></div>
+      </div>
+
+      <!-- TASKS EMPTY -->
+      <div class="section-row anim d240"><span class="section-label">✅&nbsp; Priority Tasks</span><button class="view-all">View all →</button></div>
+      <div class="empty-state anim d300">
+        <svg class="empty-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="20" stroke="#1E1E2E" stroke-width="1.5"/>
+          <circle cx="24" cy="24" r="12" stroke="#1E1E2E" stroke-width="1.5"/>
+          <circle cx="36" cy="12" r="3" stroke="#252535" stroke-width="1.5"/>
+          <circle cx="12" cy="36" r="3" stroke="#252535" stroke-width="1.5"/>
+          <line x1="24" y1="4" x2="24" y2="12" stroke="#252535" stroke-width="1.5"/>
+          <line x1="24" y1="36" x2="24" y2="44" stroke="#252535" stroke-width="1.5"/>
+          <line x1="4" y1="24" x2="12" y2="24" stroke="#252535" stroke-width="1.5"/>
+          <line x1="36" y1="24" x2="44" y2="24" stroke="#252535" stroke-width="1.5"/>
+          <circle cx="24" cy="24" r="2" fill="#252535"/>
+        </svg>
+        <div class="empty-title">All clear</div>
+        <div class="empty-sub">No tasks found in recent emails</div>
+      </div>
+
+      <div class="divider anim d360"></div>
+
+      <!-- CALENDAR WITH ZEROS -->
+      <div class="section-row anim d480" style="margin-bottom:8px"><span class="section-label">📅&nbsp; Calendar</span></div>
+      <div class="cal-chips anim d480">
+        <div class="cal-chip cal-chip-blue">
+          <span class="cal-chip-icon">🎯</span>
+          <div class="cal-chip-num">0</div>
+          <span class="cal-chip-label1">Focus blocks</span>
+          <span class="cal-chip-label2">added today</span>
+        </div>
+        <div class="cal-chip cal-chip-purple">
+          <span class="cal-chip-icon">⚡</span>
+          <div class="cal-chip-num-purple">2:00 PM</div>
+          <span class="cal-chip-label1">Next free</span>
+          <span class="cal-chip-label2">slot today</span>
+        </div>
+      </div>
+
+      <div class="divider anim d480"></div>
+
+      <!-- COMMITMENTS EMPTY -->
+      <div class="section-row anim d540"><span class="section-label">🤝&nbsp; Commitments</span></div>
+      <div class="tab-row anim d540">
+        <button class="tab active">I Owe (0)</button>
+        <button class="tab inactive">They Owe (0)</button>
+      </div>
+      <div class="empty-state anim d540" style="padding:16px">
+        <svg class="empty-icon" style="width:36px;height:36px" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="20" stroke="#1E1E2E" stroke-width="1.5"/>
+          <circle cx="24" cy="24" r="2" fill="#252535"/>
+        </svg>
+        <div class="empty-title" style="font-size:12px">No commitments</div>
+        <div class="empty-sub" style="font-size:10px">Nothing tracked in recent history</div>
+      </div>
+
+      <div class="divider anim d540"></div>
+
+      <!-- ASK AXION -->
+      <div class="section-row anim d600"><span class="section-label">💬&nbsp; Ask Axion</span></div>
+      <div class="ask-input-row anim d600">
+        <input class="ask-input" type="text" placeholder="What did I promise this week?">
+        <button class="send-btn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <button class="sync-btn sync-btn-idle anim d0">
+        <span style="font-size:16px">⚡</span>
+        <span class="sync-btn-text">Sync Now</span>
+        <span class="sync-btn-chevron">›</span>
+        <div class="shimmer-sweep"></div>
+      </button>
+    </div>
+  </div>
+
+</div><!-- end screens-row -->
+
+<script>
+function makeStars(containerId) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  for (let i = 0; i < 45; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 0.5 + 1;
+    s.style.cssText = [
+      `width:${size}px`,
+      `height:${size}px`,
+      `top:${Math.random()*100}%`,
+      `left:${Math.random()*100}%`,
+      `opacity:${(Math.random()*0.04+0.01).toFixed(3)}`,
+      Math.random() > 0.7 ? 'background:rgba(79,142,247,0.8)' : 'background:#fff'
+    ].join(';');
+    c.appendChild(s);
+  }
+}
+['stars1','stars2','stars3','stars4'].forEach(makeStars);
+
+// Typewriter for briefing on Screen 1
+(function() {
+  const el = document.getElementById('brief1');
+  const cursor = document.getElementById('cur1');
+  const text = "Good morning. You have 3 priority tasks today. Rahul owes you a reply on the proposal by Thursday. Two focus blocks have been reserved.";
+  el.textContent = '';
+  el.appendChild(cursor);
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i < text.length) {
+      el.insertBefore(document.createTextNode(text[i]), cursor);
+      i++;
+    } else {
+      clearInterval(timer);
+      setTimeout(() => { cursor.style.animation = 'none'; cursor.style.opacity = '0'; }, 3000);
+    }
+  }, 30);
+})();
+</script>
+</body>
+</html>

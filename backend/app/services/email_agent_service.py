@@ -1,5 +1,4 @@
 import json
-import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -28,6 +27,12 @@ ACTION_KEYWORDS = [
 ]
 
 COMMITMENT_HINTS = ["i will", "we will", "promised", "commit", "by ", "before "]
+
+
+class GeminiFallbackError(RuntimeError):
+    def __init__(self, attempts: list[dict]):
+        super().__init__("All Gemini fallback models failed.")
+        self.attempts = attempts
 
 
 class EmailAgentService:
@@ -60,6 +65,9 @@ class EmailAgentService:
             "tasks_saved": saved["tasks_saved"],
             "commitments_saved": saved["commitments_saved"],
             "mode": extracted.get("mode", "heuristic"),
+            "model_used": extracted.get("model_used"),
+            "model_attempts": extracted.get("model_attempts", []),
+            "fallback_reason": extracted.get("fallback_reason"),
         }
 
     def _filter_actionable(self, emails: list[dict]) -> list[dict]:
@@ -77,8 +85,15 @@ class EmailAgentService:
         if settings.gemini_api_key:
             try:
                 return await self._extract_with_gemini(emails)
-            except Exception:
-                pass
+            except GeminiFallbackError as exc:
+                heuristic = self._extract_heuristic(emails)
+                heuristic["model_attempts"] = exc.attempts
+                heuristic["fallback_reason"] = f"Gemini extraction failed: {exc.attempts}"
+                return heuristic
+            except Exception as exc:  # noqa: BLE001
+                heuristic = self._extract_heuristic(emails)
+                heuristic["fallback_reason"] = f"Gemini extraction failed: {exc}"
+                return heuristic
 
         return self._extract_heuristic(emails)
 
@@ -92,10 +107,8 @@ class EmailAgentService:
             ),
             "emails": emails,
         }
-        url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{settings.gemini_flash_model}:generateContent?key={settings.gemini_api_key}"
-        )
+        models = self._build_model_fallback_chain()
+        attempts: list[dict] = []
         payload = {
             "contents": [
                 {
@@ -105,27 +118,72 @@ class EmailAgentService:
                         }
                     ]
                 }
-            ]
+            ],
+            "generationConfig": {
+                "response_mime_type": "application/json",
+            },
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=payload)
-        response.raise_for_status()
-        raw = response.json()
+            for model in models:
+                url = (
+                    "https://generativelanguage.googleapis.com/v1beta/models/"
+                    f"{model}:generateContent?key={settings.gemini_api_key}"
+                )
+                try:
+                    response = await client.post(url, json=payload)
+                    response.raise_for_status()
+                    raw = response.json()
 
-        text = (
-            raw.get("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "{}")
-            .strip()
-        )
-        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        parsed = json.loads(text)
-        parsed["mode"] = "gemini"
-        parsed.setdefault("tasks", [])
-        parsed.setdefault("commitments", [])
-        return parsed
+                    text = (
+                        raw.get("candidates", [{}])[0]
+                        .get("content", {})
+                        .get("parts", [{}])[0]
+                        .get("text", "{}")
+                        .strip()
+                    )
+                    parsed = self._parse_gemini_json(text)
+                    parsed["mode"] = "gemini"
+                    parsed["model_used"] = model
+                    parsed["model_attempts"] = attempts + [{"model": model, "status": "ok"}]
+                    parsed.setdefault("tasks", [])
+                    parsed.setdefault("commitments", [])
+                    return parsed
+                except Exception as exc:  # noqa: BLE001
+                    attempts.append({"model": model, "status": "failed", "error": str(exc)})
+
+        raise GeminiFallbackError(attempts)
+
+    def _build_model_fallback_chain(self) -> list[str]:
+        models: list[str] = []
+
+        if settings.gemini_flash_model:
+            models.append(settings.gemini_flash_model)
+        if settings.gemini_pro_model:
+            models.append(settings.gemini_pro_model)
+
+        configured = [m.strip() for m in settings.gemini_fallback_models.split(",") if m.strip()]
+        models.extend(configured)
+
+        # Reasonable defaults if user hasn't configured fallback models.
+        models.extend(["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash-lite"])
+
+        deduped: list[str] = []
+        for model in models:
+            if model not in deduped:
+                deduped.append(model)
+        return deduped
+
+    def _parse_gemini_json(self, text: str) -> dict:
+        cleaned = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                return json.loads(cleaned[start : end + 1])
+            raise
 
     def _extract_heuristic(self, emails: list[dict]) -> dict:
         tasks: list[dict] = []

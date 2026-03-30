@@ -54,31 +54,65 @@ class CalendarAgentService:
             }
 
         best_slot = analysis["free_slots"][0]
-        start_iso = best_slot["start"]
-        start_dt = datetime.fromisoformat(start_iso)
-        end_dt = start_dt + timedelta(minutes=duration_minutes)
+        created = self.create_focus_block_from_slot(
+            email=email,
+            slot_start_iso=best_slot["start"],
+            duration_minutes=duration_minutes,
+        )
 
-        credentials = self.oauth_service.get_valid_credentials(email)
-        calendar = build("calendar", "v3", credentials=credentials, cache_discovery=False)
-        payload = {
-            "summary": "AXION Focus Block",
-            "description": "Auto-scheduled by AXION Calendar Agent",
-            "start": {"dateTime": start_dt.isoformat(), "timeZone": "UTC"},
-            "end": {"dateTime": end_dt.isoformat(), "timeZone": "UTC"},
-        }
-        created = calendar.events().insert(calendarId="primary", body=payload).execute()
+        if not created.get("created"):
+            return created
 
         return {
             "created": True,
             "message": "Focus block created from top-scoring free slot.",
             "slot": best_slot,
-            "event": {
-                "id": created.get("id"),
-                "summary": created.get("summary"),
-                "start": (created.get("start") or {}).get("dateTime"),
-                "end": (created.get("end") or {}).get("dateTime"),
-                "html_link": created.get("htmlLink"),
-            },
+            "event": created.get("event"),
+        }
+
+    def create_focus_block_from_slot(self, email: str, slot_start_iso: str, duration_minutes: int = 60, title: str = "AXION Focus Block", description: str = "Auto-scheduled by AXION Calendar Agent") -> dict:
+        try:
+            start_dt = datetime.fromisoformat(slot_start_iso)
+            end_dt = start_dt + timedelta(minutes=duration_minutes)
+
+            credentials = self.oauth_service.get_valid_credentials(email)
+            calendar = build("calendar", "v3", credentials=credentials, cache_discovery=False)
+            payload = {
+                "summary": title,
+                "description": description,
+                "start": {"dateTime": start_dt.isoformat(), "timeZone": "UTC"},
+                "end": {"dateTime": end_dt.isoformat(), "timeZone": "UTC"},
+            }
+            created = calendar.events().insert(calendarId="primary", body=payload).execute()
+
+            return {
+                "created": True,
+                "event": {
+                    "id": created.get("id"),
+                    "summary": created.get("summary"),
+                    "start": (created.get("start") or {}).get("dateTime"),
+                    "end": (created.get("end") or {}).get("dateTime"),
+                    "html_link": created.get("htmlLink"),
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "created": False,
+                "message": f"Failed to create focus block: {exc}",
+            }
+
+    def get_event(self, email: str, event_id: str) -> dict:
+        credentials = self.oauth_service.get_valid_credentials(email)
+        calendar = build("calendar", "v3", credentials=credentials, cache_discovery=False)
+        event = calendar.events().get(calendarId="primary", eventId=event_id).execute()
+        return {
+            "id": event.get("id"),
+            "summary": event.get("summary"),
+            "description": event.get("description"),
+            "status": event.get("status"),
+            "start": (event.get("start") or {}).get("dateTime") or (event.get("start") or {}).get("date"),
+            "end": (event.get("end") or {}).get("dateTime") or (event.get("end") or {}).get("date"),
+            "html_link": event.get("htmlLink"),
         }
 
     def _compute_free_slots(self, events: list[dict], window_start: datetime, window_end: datetime, min_minutes: int) -> list[dict]:

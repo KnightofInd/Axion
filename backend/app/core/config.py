@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     google_cloud_project: str = "axion-prod"
     google_cloud_region: str = "us-central1"
     gemini_api_key: str = ""
+    gemini_fallback_models: str = ""
     vertex_embedding_model: str = "text-embedding-005"
     gemini_flash_model: str = "gemini-2.0-flash"
     gemini_pro_model: str = "gemini-1.5-pro"
