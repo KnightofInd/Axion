@@ -1,45 +1,182 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { DashboardShell } from "@/components/DashboardShell";
+import { SectionCard } from "@/components/SectionCard";
+import { useAxionEmail } from "@/hooks/useAxionEmail";
+import { formatDateTime } from "@/lib/format";
+import { getSidebarOverview, runSidebarSync } from "@/lib/api";
+import type { SidebarOverview } from "@/lib/types";
+
 export default function Home() {
+  const { email, saveEmail } = useAxionEmail();
+  const [tab, setTab] = useState<"i_owe" | "they_owe">("i_owe");
+  const [overview, setOverview] = useState<SidebarOverview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadOverview = useCallback(async () => {
+    if (!email) {
+      setOverview(null);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const data = await getSidebarOverview(email, tab);
+      setOverview(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load overview");
+      setOverview(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [email, tab]);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
+
+  const onSync = async () => {
+    if (!email) {
+      setError("Set an email first.");
+      return;
+    }
+
+    setSyncing(true);
+    setError("");
+    try {
+      const result = await runSidebarSync(email, true);
+      setOverview(result.overview);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const selectedCommitments = useMemo(() => {
+    return overview?.commitments.selected_items ?? [];
+  }, [overview]);
+
   return (
-    <main className="min-h-screen px-6 py-10 md:px-10">
-      <div className="mx-auto max-w-5xl space-y-8">
-        <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6 md:p-8">
-          <p className="text-xs uppercase tracking-[0.2em] text-sky-300">Phase 1</p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-100 md:text-4xl">
-            AXION Foundation Is Ready
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 md:text-base">
-            Backend and dashboard scaffolds are in place. Next step is wiring Google OAuth and
-            Supabase credentials to run live Gmail and Calendar integration checks.
-          </p>
-        </section>
+    <DashboardShell
+      email={email}
+      onEmailSave={saveEmail}
+      title="Overview"
+      subtitle="Live command center for your priorities, commitments, and focus blocks"
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={loadOverview}
+            className="rounded-lg border border-axion-border bg-white/5 px-3 py-2 text-sm text-axion-fg hover:bg-white/10"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={onSync}
+            disabled={syncing}
+            className="rounded-lg bg-axion-accent px-3 py-2 text-sm font-semibold text-slate-950 hover:brightness-105 disabled:opacity-60"
+          >
+            {syncing ? "Syncing..." : "Run Full Sync"}
+          </button>
+        </>
+      }
+    >
+      {error ? <p className="rounded-xl border border-rose-400/40 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</p> : null}
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
-            <p className="text-xs uppercase tracking-wider text-slate-400">Backend</p>
-            <p className="mt-2 text-lg font-semibold text-slate-100">FastAPI</p>
-            <p className="mt-2 text-sm text-slate-300">Health endpoints + integration stubs created.</p>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
-            <p className="text-xs uppercase tracking-wider text-slate-400">Database</p>
-            <p className="mt-2 text-lg font-semibold text-slate-100">Supabase + pgvector</p>
-            <p className="mt-2 text-sm text-slate-300">users, tasks, commitments, briefings schema ready.</p>
-          </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
-            <p className="text-xs uppercase tracking-wider text-slate-400">Frontend</p>
-            <p className="mt-2 text-lg font-semibold text-slate-100">Next.js 14</p>
-            <p className="mt-2 text-sm text-slate-300">Tailwind + key libraries installed for next phases.</p>
-          </div>
-        </section>
+      {!email ? <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-100">Set your connected email to load dashboard data.</p> : null}
 
-        <section className="rounded-2xl border border-sky-800/60 bg-sky-950/30 p-6">
-          <h2 className="text-lg font-semibold text-sky-100">Quick Check URLs</h2>
-          <ul className="mt-3 space-y-2 text-sm text-sky-50/90">
-            <li>FastAPI health: http://localhost:8000/health</li>
-            <li>API health: http://localhost:8000/api/v1/system/health</li>
-            <li>OAuth URL: http://localhost:8000/api/v1/auth/google/url</li>
-          </ul>
-        </section>
-      </div>
-    </main>
+      {loading ? <p className="text-sm text-axion-muted">Loading dashboard data...</p> : null}
+
+      {overview ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <SectionCard title="Briefing" subtitle={`Updated ${formatDateTime(overview.generated_at)}`}>
+            <p className="text-sm leading-6 text-axion-fg/90">{overview.briefing?.text || "No briefing yet."}</p>
+          </SectionCard>
+
+          <SectionCard title="Mission Stats" subtitle="Current active workload">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg border border-axion-border bg-black/20 p-2">
+                <p className="text-xs text-axion-muted">Tasks</p>
+                <p className="text-xl font-semibold text-white">{overview.stats.tasks}</p>
+              </div>
+              <div className="rounded-lg border border-axion-border bg-black/20 p-2">
+                <p className="text-xs text-axion-muted">Focus</p>
+                <p className="text-xl font-semibold text-white">{overview.stats.focus_blocks}</p>
+              </div>
+              <div className="rounded-lg border border-axion-border bg-black/20 p-2">
+                <p className="text-xs text-axion-muted">Commitments</p>
+                <p className="text-xl font-semibold text-white">{overview.stats.commitments}</p>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Next Slot" subtitle="Best next free time from latest run">
+            <p className="text-sm text-axion-fg/90">{formatDateTime(overview.calendar.next_free_slot)}</p>
+            <p className="mt-2 text-xs text-axion-muted">Latest run: {overview.latest_run?.status || "none"}</p>
+          </SectionCard>
+
+          <SectionCard title="Priority Tasks" subtitle="Top pending tasks by score">
+            <ul className="space-y-2">
+              {overview.priority_tasks.length === 0 ? <li className="text-sm text-axion-muted">No pending priorities.</li> : null}
+              {overview.priority_tasks.map((task) => (
+                <li key={task.id} className="rounded-lg border border-axion-border bg-black/20 p-2 text-sm">
+                  <p className="font-medium text-white">{task.title}</p>
+                  <p className="text-xs text-axion-muted">P{task.priority} | {task.status} | Score {task.computed_score ?? "-"}</p>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+
+          <SectionCard title="Commitments" subtitle="Switch between what you owe and what they owe">
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setTab("i_owe")}
+                className={`rounded-md px-2 py-1 text-xs ${tab === "i_owe" ? "bg-axion-accent text-slate-950" : "bg-white/10 text-axion-fg"}`}
+              >
+                I Owe
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("they_owe")}
+                className={`rounded-md px-2 py-1 text-xs ${tab === "they_owe" ? "bg-axion-accent text-slate-950" : "bg-white/10 text-axion-fg"}`}
+              >
+                They Owe
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {selectedCommitments.length === 0 ? <li className="text-sm text-axion-muted">No tracked items.</li> : null}
+              {selectedCommitments.map((item) => (
+                <li key={item.id} className="rounded-lg border border-axion-border bg-black/20 p-2 text-sm">
+                  <p className="text-white">{item.text}</p>
+                  <p className="text-xs text-axion-muted">Due {formatDateTime(item.due_at)} | {item.status}</p>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+
+          <SectionCard title="Focus Blocks" subtitle="Blocks proposed or scheduled by orchestrator">
+            <ul className="space-y-2">
+              {overview.calendar.focus_blocks.length === 0 ? <li className="text-sm text-axion-muted">No focus blocks yet.</li> : null}
+              {overview.calendar.focus_blocks.map((block, index) => (
+                <li key={`${index}-${String(block.start || "slot")}`} className="rounded-lg border border-axion-border bg-black/20 p-2 text-sm">
+                  <p className="text-white">{String(block.summary || "Focus Block")}</p>
+                  <p className="text-xs text-axion-muted">
+                    {formatDateTime(String(block.start || ""))} to {formatDateTime(String(block.end || ""))}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        </div>
+      ) : null}
+    </DashboardShell>
   );
 }

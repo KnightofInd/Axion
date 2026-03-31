@@ -3,21 +3,68 @@
 @tailwind utilities;
 
 :root {
-  --background: #020617;
-  --foreground: #e2e8f0;
+  --background: #071019;
+  --foreground: #e5eef8;
+  --axion-panel: #112133;
+  --axion-border: #2a3b50;
+  --axion-muted: #9eb3c9;
+  --axion-accent: #67e8f9;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #020617;
-    --foreground: #e2e8f0;
+    --background: #071019;
+    --foreground: #e5eef8;
+    --axion-panel: #112133;
+    --axion-border: #2a3b50;
+    --axion-muted: #9eb3c9;
+    --axion-accent: #67e8f9;
   }
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background:
+    radial-gradient(circle at 0% 0%, #1e293b 0%, transparent 40%),
+    radial-gradient(circle at 90% 10%, #0c4a6e 0%, transparent 35%),
+    linear-gradient(180deg, #071019 0%, #04080f 100%);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@layer base {
+  .bg-axion-bg {
+    background-color: var(--background);
+  }
+
+  .text-axion-fg {
+    color: var(--foreground);
+  }
+
+  .bg-axion-panel {
+    background-color: var(--axion-panel);
+  }
+
+  .border-axion-border {
+    border-color: var(--axion-border);
+  }
+
+  .text-axion-muted {
+    color: var(--axion-muted);
+  }
+
+  .bg-axion-accent {
+    background-color: var(--axion-accent);
+  }
+
+  .text-axion-accent {
+    color: var(--axion-accent);
+  }
+
+  .bg-axion-atmosphere {
+    background:
+      radial-gradient(circle at 100% 0%, rgba(103, 232, 249, 0.2), transparent 40%),
+      radial-gradient(circle at 0% 100%, rgba(14, 116, 144, 0.25), transparent 45%);
+  }
 }
 
 @layer utilities {
